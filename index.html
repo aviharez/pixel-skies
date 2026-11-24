@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>PIXEL SKIES</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; background: #10142a; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
+  canvas#fb { position: fixed; inset: 0; width: 100vw; height: 100vh; image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+  .ui { position: fixed; font-family: 'Silkscreen', monospace; color: #fff8e8; text-shadow: 2px 2px 0 #1d1630; pointer-events: none; }
+  .hide { display: none !important; }
+  #title { inset: 0; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 9vh 16px 0; gap: 12px; }
+  #title .blink { position: fixed; bottom: 16vh; left: 0; right: 0; }
+  #title h1 { margin: 0; font-size: clamp(38px, 11vw, 84px); font-weight: 700; letter-spacing: 2px; color: #ffd23f; text-shadow: 4px 4px 0 #5e36a0, 8px 8px 0 #1d1630; }
+  #title p { margin: 0; max-width: 520px; font-size: clamp(11px, 3.2vw, 15px); line-height: 1.5; }
+  .blink { font-size: clamp(18px, 5vw, 28px); color: #fff; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .credit { position: fixed; bottom: max(10px, env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center; font-size: 11px; opacity: 0.85; }
+  #hud { inset: 0; }
+  .btns { position: fixed; right: 12px; bottom: max(14px, env(safe-area-inset-bottom)); display: flex; gap: 8px; pointer-events: auto; }
+  .btns button { font-family: 'Silkscreen', monospace; font-size: 14px; color: #fff8e8; background: #5e36a0; border: 3px solid #1d1630; box-shadow: 0 4px 0 #1d1630; padding: 10px 12px; min-width: 64px; min-height: 48px; touch-action: none; }
+  .btns button:active { transform: translateY(3px); box-shadow: 0 1px 0 #1d1630; }
+  #bView { background: #2f78b5; }
+  .stats { position: fixed; left: 12px; top: max(10px, env(safe-area-inset-top)); font-size: 13px; line-height: 1.5; }
+  .stats b { color: #ffd23f; font-size: 18px; font-weight: 400; }
+  #hCombo { position: fixed; top: max(12px, env(safe-area-inset-top)); right: 12px; font-size: 20px; color: #ffd23f; }
+  .bars { position: fixed; left: 12px; top: 90px; display: flex; gap: 8px; }
+  .bar { position: relative; width: 14px; height: 120px; background: #1d1630; border: 2px solid #1d1630; box-shadow: 0 0 0 2px #fff8e8; }
+  .bar .fill { position: absolute; left: 0; right: 0; bottom: 0; background: #ffd23f; }
+  .bar .fill.alt { background: transparent; border-top: 4px solid #6fdcbc; }
+  .bar .ground { position: absolute; left: 0; right: 0; bottom: 0; background: #5fb04e; }
+  .bar span { position: absolute; top: 126px; left: 50%; transform: translateX(-50%); font-size: 9px; }
+  #over { inset: 0; display: flex; flex-direction: column; align-items: center; padding: 12vh 16px 0; gap: 16px; text-align: center; }
+  #over h2 { margin: 0; font-size: clamp(34px, 10vw, 64px); color: #ff5a6e; text-shadow: 4px 4px 0 #1d1630; }
+  #over .card { background: rgba(29, 22, 48, 0.82); border: 3px solid #fff8e8; padding: 14px 22px; font-size: 15px; line-height: 1.9; }
+  #over .card b { color: #ffd23f; font-weight: 400; }
+  #over .best { color: #6fdcbc; }
+  #over .blink { position: fixed; bottom: 16vh; left: 0; right: 0; }
+  #floats { inset: 0; overflow: hidden; }
+  .float { position: absolute; transform: translate(-50%, 0); font-size: 15px; white-space: nowrap; animation: rise 1s ease-out forwards; }
+  .float.big { font-size: 30px; animation-duration: 1.6s; }
+  @keyframes rise { 0% { opacity: 0; margin-top: 8px; } 15% { opacity: 1; } 100% { opacity: 0; margin-top: -46px; } }
+  #flash { inset: 0; opacity: 0; }
+</style>
+</head>
+<body>
+<canvas id="fb"></canvas>
+<div id="title" class="ui">
+  <h1>PIXEL SKIES</h1>
+  <p>Steer with your finger or mouse &middot; tap to ROLL, double-tap to LOOP &middot; grab the suns, dodge the storms</p>
+  <div class="blink">TAP TO FLY</div>
+</div>
+<div id="hud" class="ui hide">
+  <div class="stats"><div>SCORE <b id="hScore">0</b></div><div>SUNS <b id="hSuns">0</b> &middot; LV <b id="hLevel">1</b></div></div>
+  <div id="hCombo"></div>
+  <div class="bars">
+    <div class="bar"><div id="fuelFill" class="fill"></div><span>FUEL</span></div>
+    <div class="bar"><div id="altGround" class="ground"></div><div id="altFill" class="fill alt"></div><span>ALT</span></div>
+  </div>
+  <div class="btns"><button id="bRoll">ROLL</button><button id="bLoop">LOOP</button><button id="bView">VIEW</button></div>
+</div>
+<div id="over" class="ui hide">
+  <h2>GAME OVER</h2>
+  <div class="card">
+    <div>SCORE <b id="oScore">0</b></div><div>LEVEL <b id="oLevel">1</b></div>
+    <div>BEST COMBO <b id="oCombo">x1</b></div><div>TRICKS <b id="oTricks">0</b></div>
+    <div class="best">BEST <b id="oBest">0</b></div>
+  </div>
+  <div class="blink">TAP TO FLY AGAIN</div>
+</div>
+<div id="floats" class="ui"></div>
+<div id="flash" class="ui"></div>
+<div class="ui credit">made by @aviharez</div>
+<script>
+'use strict';
+// ---------- Renderer: tiny framebuffer, Uint32 pixels, occupancy mask ----------
+const FB_H = 300;
+const cvs = document.getElementById('fb');
+const ctx = cvs.getContext('2d');
+let W = 0, H = FB_H, img, u32, mask;
+
+function resize() {
+  W = Math.max(120, Math.round(FB_H * innerWidth / innerHeight));
+  cvs.width = W; cvs.height = H;
+  img = ctx.createImageData(W, H);
+  u32 = new Uint32Array(img.data.buffer);
+  mask = new Uint8Array(W * H);
+}
+addEventListener('resize', resize);
+resize();
+
+// colors are stored as 0xAABBGGRR (little endian ImageData)
+const rgb = (r, g, b) => (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
+const hex = h => rgb(parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16));
+function mix(c1, c2, t) {
+  const r = (c1 & 255) + (((c2 & 255) - (c1 & 255)) * t) | 0;
+  const g = ((c1 >> 8) & 255) + ((((c2 >> 8) & 255) - ((c1 >> 8) & 255)) * t) | 0;
+  const b = ((c1 >> 16) & 255) + ((((c2 >> 16) & 255) - ((c1 >> 16) & 255)) * t) | 0;
+  return rgb(r, g, b);
+}
+const shade = (c, k) => mix(c, 0xff000000, 1 - k);
+
+// write a pixel only if nothing has been written there yet this frame
+function plot(x, y, c) {
+  x |= 0; y |= 0;
+  if (x < 0 || y < 0 || x >= W || y >= H) return;
+  const i = y * W + x;
+  if (mask[i]) return;
+  mask[i] = 1; u32[i] = c;
+}
+
+const SKY_TOP = hex('#3b4fa8'), SKY_HZ = hex('#f4c9b0');
+function fillSky(horizonY) {
+  for (let y = 0; y < H; y++) {
+    const t = Math.max(0, Math.min(1, y / Math.max(8, horizonY)));
+    const c = mix(SKY_TOP, SKY_HZ, t * t);
+    const row = y * W;
+    for (let x = 0; x < W; x++) if (!mask[row + x]) u32[row + x] = c;
+  }
+}
+
+function beginFrame() { mask.fill(0); }
+function endFrame() { ctx.putImageData(img, 0, 0); }
+
+// ---------- Plane: 16 slices of 32x32 palette indices ----------
+// 0 empty, 1 outline, 2 cream, 3 cream shade, 4 purple, 5 purple dark, 6 yellow tip, 7 mint, 8 mint light, 9 prop
+const PAL = [0, '#1d1630', '#f6ead0', '#d8c39c', '#8a55d6', '#5e36a0', '#ffd23f', '#6fdcbc', '#d2fff2', '#3a3550'].map(c => c ? hex(c) : 0);
+const SLICES = [];
+for (let k = 0; k < 16; k++) SLICES.push(new Uint8Array(32 * 32));
+(function buildPlane() {
+  const set = (k, U, V, c) => { const u = U + 16, v = V + 16; if (u >= 0 && u < 32 && v >= 0 && v < 32 && k >= 0 && k < 16) SLICES[k][v * 32 + u] = c; };
+  // fuselage: round cross-section centred on slice 6, nose at +U
+  for (let U = -13; U <= 12; U++) {
+    const r = U > 8 ? 3.3 - (U - 8) * 0.45 : U < -4 ? 1.4 + (U + 13) * 0.21 : 3.3;
+    for (let V = -4; V <= 4; V++) for (let k = 2; k <= 10; k++) {
+      const dk = k - 6;
+      if (V * V + dk * dk <= r * r + 0.3) set(k, U, V, k <= 3 ? 3 : 2);
+    }
+  }
+  // wings with yellow tips
+  for (let U = -3; U <= 4; U++) for (let V = -14; V <= 14; V++) {
+    const tip = Math.abs(V) >= 12;
+    if (Math.abs(V) > 12 && (U < -2 || U > 3)) continue;
+    set(5, U, V, tip ? 6 : 5); set(6, U, V, tip ? 6 : 4);
+  }
+  // tailplane
+  for (let U = -13; U <= -10; U++) for (let V = -6; V <= 6; V++) if (Math.abs(V) < 6 || U > -13) set(6, U, V, 4);
+  // fin
+  for (let k = 7; k <= 13; k++) for (let U = -13; U <= -9 - Math.floor((k - 7) * 0.6); U++) set(k, U, 0, k > 11 ? 6 : 4);
+  // cockpit
+  for (let U = 0; U <= 5; U++) for (let V = -2; V <= 2; V++) {
+    set(9, U, V, 7);
+    if (Math.abs(V) <= 1 && U >= 1 && U <= 4) set(10, U, V, U >= 3 ? 8 : 7);
+  }
+  // propeller hub and blades
+  set(6, 13, 0, 9); for (let k = 3; k <= 9; k++) set(k, 14, 0, 9);
+  // outline slice: silhouette of everything above, grown by one pixel
+  const sil = new Uint8Array(32 * 32);
+  for (let k = 1; k < 16; k++) for (let i = 0; i < 1024; i++) if (SLICES[k][i]) sil[i] = 1;
+  for (let v = 0; v < 32; v++) for (let u = 0; u < 32; u++) {
+    let on = 0;
+    for (let dv = -1; dv <= 1; dv++) for (let du = -1; du <= 1; du++) {
+      const uu = u + du, vv = v + dv;
+      if (uu >= 0 && vv >= 0 && uu < 32 && vv < 32 && sil[vv * 32 + uu]) on = 1;
+    }
+    if (on && !sil[v * 32 + u]) SLICES[0][v * 32 + u] = 1;   // a 1px rim, drawn just under the wings
+  }
+})();
+// voxel list: keep only voxels that are visible from some side
+const VOX = [];
+for (let k = 0; k < 16; k++) for (let v = 0; v < 32; v++) for (let u = 0; u < 32; u++) {
+  const c = SLICES[k][v * 32 + u]; if (!c) continue;
+  const at = (kk, vv, uu) => kk < 0 || kk > 15 || vv < 0 || vv > 31 || uu < 0 || uu > 31 ? 0 : SLICES[kk][vv * 32 + uu];
+  if (k > 0 && at(k + 1, v, u) && at(k - 1, v, u) && at(k, v + 1, u) && at(k, v - 1, u) && at(k, v, u + 1) && at(k, v, u - 1)) continue;
+  VOX.push(u - 15.5, v - 15.5, k ? k - 6 : -1.5, PAL[c]);
+}
+const NV = VOX.length / 4;
+const vx = new Float32Array(NV), vy = new Float32Array(NV), vkey = new Int16Array(NV), vorder = new Uint16Array(NV), bucket = new Uint16Array(257);
+
+// cam: { s (scale), slope, fx, fy (camera forward), rx, ry (camera right) }
+function drawPlane(sx, sy, cam, heading, roll, pitch, tint) {
+  const ch = Math.cos(heading), sh = Math.sin(heading), cr = Math.cos(roll), sr = Math.sin(roll), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const s = cam.s, sl = cam.slope;
+  bucket.fill(0);
+  for (let i = 0; i < NV; i++) {
+    const U = VOX[i * 4], V = VOX[i * 4 + 1], K = VOX[i * 4 + 2];
+    const V1 = V * cr - K * sr, K1 = V * sr + K * cr;       // roll about the nose axis
+    const U2 = U * cp - K1 * sp, K2 = U * sp + K1 * cp;      // pitch about the wing axis
+    const X = U2 * ch - V1 * sh, Y = U2 * sh + V1 * ch;      // heading
+    const d = X * cam.fx + Y * cam.fy, a = X * cam.rx + Y * cam.ry;
+    vx[i] = sx + s * a; vy[i] = sy - s * (K2 + sl * d);      // one slice = one pixel up (times scale)
+    const key = Math.max(0, Math.min(255, Math.round((K2 * sl - d) * 2) + 128));
+    vkey[i] = key; bucket[key + 1]++;
+  }
+  for (let b = 1; b < 257; b++) bucket[b] += bucket[b - 1];
+  for (let i = 0; i < NV; i++) vorder[bucket[vkey[i]]++] = i;
+  const sz = Math.max(1, Math.ceil(s + 0.35));
+  for (let j = NV - 1; j >= 0; j--) {            // nearest voxels first: first write wins
+    const i = vorder[j];
+    const c = tint ? mix(VOX[i * 4 + 3], tint, 0.5) : VOX[i * 4 + 3];
+    const x0 = Math.round(vx[i] - sz / 2), y0 = Math.round(vy[i] - sz / 2);
+    for (let yy = 0; yy < sz; yy++) for (let xx = 0; xx < sz; xx++) plot(x0 + xx, y0 + yy, c);
+  }
+}
+
+// ---------- World: tileable value noise height map ----------
+const N = 512, NM = N - 1, ZSTEP = 2, SEA = 0.47;
+function rng(seed) {
+  return () => {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+// sum of octaves of value noise whose lattice wraps, so the map tiles seamlessly
+function tileNoise(cells0, octaves, seed) {
+  const out = new Float32Array(N * N), r = rng(seed);
+  let amp = 1;
+  for (let o = 0; o < octaves; o++) {
+    const c = cells0 << o, lat = new Float32Array(c * c), step = N / c;
+    for (let i = 0; i < c * c; i++) lat[i] = r();
+    for (let y = 0; y < N; y++) {
+      const gy = y / step, iy = gy | 0, ty = gy - iy, sy = ty * ty * (3 - 2 * ty);
+      const y0 = (iy % c) * c, y1 = ((iy + 1) % c) * c;
+      for (let x = 0; x < N; x++) {
+        const gx = x / step, ix = gx | 0, tx = gx - ix, sx = tx * tx * (3 - 2 * tx);
+        const x0 = ix % c, x1 = (ix + 1) % c;
+        const a = lat[y0 + x0] + (lat[y0 + x1] - lat[y0 + x0]) * sx;
+        const b = lat[y1 + x0] + (lat[y1 + x1] - lat[y1 + x0]) * sx;
+        out[y * N + x] += amp * (a + (b - a) * sy);
+      }
+    }
+    amp *= 0.5;
+  }
+  let lo = 1e9, hi = -1e9;
+  for (const v of out) { if (v < lo) lo = v; if (v > hi) hi = v; }
+  for (let i = 0; i < out.length; i++) out[i] = (out[i] - lo) / (hi - lo);
+  return out;
+}
+
+const NOISE = tileNoise(4, 5, 7);
+const ZH = new Uint8Array(N * N);          // whole-number heights (terraces) times ZSTEP
+const TOP = new Uint32Array(N * N), WALL = new Uint32Array(N * N), TOPSH = new Uint32Array(N * N);
+const C = {
+  deep: hex('#1d3f7a'), shallow: hex('#2f78b5'), surf: hex('#8fd8ea'), sand: hex('#ecd9a0'),
+  lgrass: hex('#a6dc6c'), grass: hex('#5fb04e'), forest: hex('#2e7a46'), rock: hex('#8c7f7a'), snow: hex('#f3f5fb'),
+};
+let ZMAX = 0;
+(function buildTerrain() {
+  for (let i = 0; i < N * N; i++) {
+    const v = NOISE[i];
+    if (v < SEA) { ZH[i] = 0; continue; }
+    const lv = Math.pow((v - SEA) / (1 - SEA), 1.25) * 30;
+    ZH[i] = (1 + Math.floor(lv)) * ZSTEP;
+    if (ZH[i] > ZMAX) ZMAX = ZH[i];
+  }
+  const jit = rng(99);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x, v = NOISE[i], L = ZH[i] / ZSTEP;
+    let c;
+    if (v < SEA) c = v < SEA - 0.1 ? C.deep : v < SEA - 0.025 ? C.shallow : C.surf;
+    else c = L <= 2 ? C.sand : L <= 6 ? C.lgrass : L <= 11 ? C.grass : L <= 17 ? C.forest : L <= 23 ? C.rock : C.snow;
+    // light from the north-west: compare with the neighbour there, so terrace edges get highlights
+    const n = ZH[((y - 1) & NM) * N + ((x - 1) & NM)];
+    let k = ZH[i] > n ? 1.2 : ZH[i] < n ? 0.74 : 1;
+    if (v < SEA) k = 1 + (jit() < 0.04 ? 0.15 : 0);           // water glints
+    else if (c === C.forest || c === C.grass) k *= 0.94 + jit() * 0.12;
+    const top = k >= 1 ? mix(c, 0xffffffff, (k - 1) * 0.9) : shade(c, k);
+    TOP[i] = top; WALL[i] = shade(c, 0.6); TOPSH[i] = shade(top, 0.72);
+  }
+})();
+// clouds: a second wrapping noise map at a fixed altitude, drifting slowly
+const CLOUD = tileNoise(4, 4, 31), CZ = 88, CTH = 0.64;
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + 0.5) / 16);
+const CLOUD_HI = hex('#ffffff'), CLOUD_MID = hex('#e4e6f6'), CLOUD_LO = hex('#b9bde0');
+let cloudDX = 0, cloudDY = 0;
+const groundZ = (x, y) => ZH[((y + 524288) & NM) * N + ((x + 524288) & NM)];
+
+// ---------- Camera: s = S / (1 + q*depth), sx = cx + s*across, sy = cy - s*(z + slope*depth) ----------
+const cam = { x: 0, y: 0, z: 0, heading: -Math.PI / 2, S: 1, q: 0, slope: 1, cx: 0, cy: 0, fx: 0, fy: -1, rx: 1, ry: 0, dMax: 300, t: 0, s: 1 };
+const P = { x: 0, y: 0, d: 0, s: 1 };
+function project(x, y, z) {
+  const dx = x - cam.x, dy = y - cam.y;
+  const d = dx * cam.fx + dy * cam.fy, a = dx * cam.rx + dy * cam.ry;
+  const s = cam.S / (1 + cam.q * d);
+  P.x = cam.cx + s * a; P.y = cam.cy - s * (z - cam.z + cam.slope * d); P.d = d; P.s = s;
+  return P;
+}
+const SKY_HAZE = hex('#f6d2bd');
+const ytop = new Int16Array(2048);
+const SHADOW = new Uint8Array(N * N), shadowList = [];
+function stampShadow(x, y, r) {
+  const r2 = r * r;
+  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    if (dx * dx + dy * dy > r2) continue;
+    const i = (((y + dy + 524288) | 0) & NM) * N + (((x + dx + 524288) | 0) & NM);
+    if (!SHADOW[i]) { SHADOW[i] = 1; shadowList.push(i); }
+  }
+}
+function clearShadows() { for (const i of shadowList) SHADOW[i] = 0; shadowList.length = 0; }
+// sprites (plane, suns, storms) sorted by the ground row they must be drawn before
+let sprites = [];
+
+// Walk ground rows from near to far. Every sample is a column: top colour at its height, darker wall below.
+// The occupancy mask means nothing drawn earlier (nearer) is ever overwritten.
+function drawWorld() {
+  const { S, q, slope, cx, cy, fx, fy, rx, ry } = cam;
+  ytop.fill(H, 0, W);
+  let open = W;
+  const K = Math.max(ZMAX, CZ) - cam.z, below = H - cy;
+  let d = (-below - S * K) / (S * slope + below * q);
+  if (q > 0) d = Math.max(d, -0.9 / q);
+  const fog0 = cam.dMax * 0.35, fogR = 1 / (cam.dMax - fog0);
+  let si = 0;
+  while (d < cam.dMax && open > 0) {
+    while (si < sprites.length && sprites[si].dT <= d) drawSprite(sprites[si++]);
+    const den = 1 + q * d, s = S / den, step = 0.85 * den * den / (S * Math.max(slope * 0.5, slope + q * cam.z));   // a bit under 1px per row
+    const baseY = cy - s * (slope * d - cam.z);
+    const topH = Math.max(1, Math.ceil(baseY - (cy - (S / (1 + q * (d + step))) * (slope * (d + step) - cam.z))));
+    const fog = d > fog0 ? Math.min(0.92, (d - fog0) * fogR) : 0;
+    const ox = cam.x + fx * d + 524288, oy = cam.y + fy * d + 524288, inv = 1 / s;
+    const cox = ox - cloudDX, coy = oy - cloudDY;
+    // cloud layer of this row, drawn before the ground of the same row (it is in front of it)
+    const yc = cy - s * (CZ - cam.z + slope * d);
+    const ycN = cy - (S / (1 + q * (d + step))) * (CZ - cam.z + slope * (d + step));
+    // clouds close to the chase camera fade out (ordered dither) so they never blind the view
+    const cfade = 1 - cam.t * Math.max(0, Math.min(1, (90 - d) / 70));
+    if (yc >= -2 && yc < H + 2 && cfade > 0.02) {
+      const span = Math.max(1, Math.ceil(Math.abs(yc - ycN)));
+      const y0 = yc | 0;
+      for (let sx = 0; sx < W; sx++) {
+        if (ytop[sx] <= y0) continue;                      // already hidden behind nearer ground
+        const a = (sx + 0.5 - cx) * inv;
+        const v = CLOUD[(((coy + ry * a) | 0) & NM) * N + (((cox + rx * a) | 0) & NM)];
+        if (v < CTH) continue;
+        let c = v > CTH + 0.1 ? CLOUD_HI : v > CTH + 0.04 ? CLOUD_MID : CLOUD_LO;
+        if (fog) c = mix(c, SKY_HAZE, fog * 0.8);
+        const alpha = Math.min(1, (v - CTH) / 0.05) * cfade;     // dithered, see-through edges
+        for (let y = y0, k = 0; k < span; k++, y++) {
+          if (y < 0 || y >= H || BAYER[(y & 3) * 4 + (sx & 3)] > alpha) continue;
+          const j = y * W + sx;
+          if (!mask[j]) { mask[j] = 1; u32[j] = c; }
+        }
+      }
+    }
+    for (let sx = 0; sx < W; sx++) {
+      const yb = ytop[sx];
+      if (yb <= 0) continue;
+      const a = (sx + 0.5 - cx) * inv;
+      const i = (((oy + ry * a) | 0) & NM) * N + (((ox + rx * a) | 0) & NM);
+      let yt = (baseY - s * ZH[i]) | 0;
+      if (yt >= yb) continue;
+      if (yt < 0) yt = 0;
+      ytop[sx] = yt; if (yt === 0) open--;
+      const wx = ((ox + rx * a) | 0), wy = ((oy + ry * a) | 0);
+      let top = SHADOW[i] ? shade(TOP[i], 0.55) : CLOUD[((wy - cloudDY + 7) & NM) * N + ((wx - cloudDX + 7) & NM)] > CTH ? TOPSH[i] : TOP[i], wall = WALL[i];
+      if (fog) { top = mix(top, SKY_HAZE, fog); wall = mix(wall, SKY_HAZE, fog); }
+      const yEdge = yt + topH;
+      for (let y = yt, j = yt * W + sx; y < yb; y++, j += W) {
+        if (mask[j]) continue;
+        mask[j] = 1; u32[j] = y < yEdge ? top : wall;
+      }
+    }
+    d += step;
+  }
+  while (si < sprites.length) drawSprite(sprites[si++]);
+  fillSky(q > 0 ? cy - S * slope / q : -1);
+}
+
+// presets: top-down (q = 0) and chase view behind the plane
+function setCamera(t, px, py, pz, heading) {
+  const e = t * t * (3 - 2 * t);
+  const lerp = (a, b) => a + (b - a) * e;
+  cam.S = lerp(1.2, 1.75); cam.q = lerp(0, 0.008); cam.slope = lerp(1, 0.5);
+  let dh = heading - (-Math.PI / 2);
+  dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+  cam.heading = -Math.PI / 2 + dh * e;
+  cam.fx = Math.cos(cam.heading); cam.fy = Math.sin(cam.heading); cam.rx = -cam.fy; cam.ry = cam.fx;
+  cam.cx = W / 2; cam.cy = H * lerp(0.64, 0.68);
+  cam.z = lerp(0, pz - 14);
+  cam.x = px; cam.y = py;
+  cam.dMax = lerp((cam.cy + ZMAX + 20) / cam.S + 20, 900);
+  cam.t = t;
+}
+
+// ---------- Sprites: suns and storms ----------
+const SUN_CORE = hex('#fff6c8'), SUN_MID = hex('#ffd23f'), SUN_EDGE = hex('#ff9a2e');
+const STORM_A = hex('#2a2340'), STORM_B = hex('#4a3d6e'), STORM_HI = hex('#7a6aa8'), STORM_RED = hex('#ff2e4a'), STORM_RED_OFF = hex('#6a1830');
+function fogOf(d) { const f0 = cam.dMax * 0.35; return d > f0 ? Math.min(0.9, (d - f0) / (cam.dMax - f0)) : 0; }
+function disc(cx, cy, r, colorAt) {
+  const R = Math.ceil(r + 1);
+  for (let y = -R; y <= R; y++) for (let x = -R; x <= R; x++) {
+    const c = colorAt(x, y, Math.hypot(x, y) / r, Math.atan2(y, x));
+    if (c) plot(cx + x, cy + y, c);
+  }
+}
+function drawSprite(o) {
+  if (o.kind === 'plane') { cam.s = o.s * (1 + 0.15 * cam.t); drawPlane(o.sx, o.sy, cam, plane.h, plane.roll, plane.pitch, plane.tint); return; }
+  const fog = fogOf(o.d), r = Math.max(1.5, o.s * (o.kind === 'sun' ? 4.2 : 6.5));
+  if (o.s > cam.S * 2.4) return;                          // too close to the camera lens
+  if (o.sy < -r * 2 || o.sy > H + r * 2 || o.sx < -r * 2 || o.sx > W + r * 2) return;
+  if (o.kind === 'sun') {
+    const rot = clock * 1.5 + o.ref.phase;
+    disc(o.sx, o.sy, r * 1.5, (x, y, q, a) => {
+      let c;
+      if (q < 0.45) c = SUN_CORE;
+      else if (q < 0.8) c = SUN_MID;
+      else if (q < 1) c = SUN_EDGE;
+      else {                                            // dithered glow and rotating rays
+        const ray = Math.pow(Math.max(0, Math.cos(a * 4 + rot)), 6);
+        const alpha = (1.5 - q) / 0.5 * (0.3 + ray * 0.7);
+        if (BAYER[((y + 64) & 3) * 4 + ((x + 64) & 3)] > alpha) return 0;
+        c = ray > 0.4 ? SUN_MID : SUN_EDGE;
+      }
+      return fog ? mix(c, SKY_HAZE, fog) : c;
+    });
+  } else {
+    const rot = clock * 0.8 + o.ref.phase, on = (clock * 3 + o.ref.phase) % 1 < 0.5;
+    disc(o.sx, o.sy, r * 1.45, (x, y, q, a) => {
+      const spike = Math.pow(Math.max(0, Math.cos(a * 7 + rot)), 6) * 0.6;
+      if (q > 1 + spike) return 0;
+      let c;
+      if (q < 0.3) c = on ? STORM_RED : STORM_RED_OFF;
+      else if (q < 0.42 && on) c = mix(STORM_RED, STORM_A, 0.5);
+      else c = (x + y) < -r * 0.5 && q < 0.95 ? STORM_HI : q > 0.95 ? STORM_A : STORM_B;
+      return fog ? mix(c, SKY_HAZE, fog) : c;
+    });
+  }
+}
+
+// ---------- Flight ----------
+const plane = { x: 0, y: 0, z: 55, h: 0.4, speed: 52, roll: 0, pitch: 0, bank: 0, rollT: -1, rollDir: 1, loopT: -1, boost: 0, spin: 0, tint: 0 };
+(function spawn() {                       // start over open water near land
+  const r = rng(5);
+  for (let k = 0; k < 500; k++) {
+    const x = r() * N, y = r() * N;
+    if (NOISE[(y | 0) * N + (x | 0)] < SEA - 0.06 && groundZ(x + 60, y) === 0) { plane.x = x; plane.y = y; return; }
+  }
+})();
+const camPos = { x: plane.x, y: plane.y, z: plane.z, h: plane.h };
+let mode = 'title', viewT = 0, viewTarget = 0, clock = 0;
+const input = { turn: 0, climb: 0, keys: {}, pointer: null, boostHeld: false };
+const G = { score: 0, suns: 0, level: 1, levelT: 0, combo: 0, lastSun: -9, bestCombo: 0, tricks: 0, fuel: 100, invuln: 0, skim: 0, skimText: 0, loopSun: false, crashT: 0, demo: false };
+let suns = [], storms = [];
+const rnd = rng(1234);
+
+function angDiff(a, b) { return Math.atan2(Math.sin(b - a), Math.cos(b - a)); }
+// position of an object relative to the plane: along its heading and to its right
+function rel(o) {
+  const dx = o.x - plane.x, dy = o.y - plane.y, ch = Math.cos(plane.h), sh = Math.sin(plane.h);
+  return { along: dx * ch + dy * sh, side: -dx * sh + dy * ch, dz: o.z - plane.z };
+}
+
+function autopilot() {
+  // fly to the nearest sun ahead, climb over ground, roll through storms
+  let target = null, best = 1e9;
+  for (const s of suns) {
+    if (s.got) continue;
+    const r = rel(s);
+    if (r.along < 12 || r.along > 260 || Math.abs(r.side) > r.along * 1.2) continue;
+    const cost = r.along + Math.abs(r.side) * 2;
+    if (cost < best) { best = cost; target = s; }
+  }
+  let turn, wantZ;
+  if (target) {
+    const a = Math.atan2(target.y - plane.y, target.x - plane.x);
+    turn = Math.max(-1, Math.min(1, angDiff(plane.h, a) * 2.2));
+    wantZ = target.z;
+  } else {
+    turn = Math.sin(clock * 0.23) * 0.45 + Math.sin(clock * 0.61) * 0.2;
+    wantZ = 50;
+  }
+  const ax = plane.x + Math.cos(plane.h) * 40, ay = plane.y + Math.sin(plane.h) * 40;
+  wantZ = Math.max(wantZ, groundZ(ax, ay) + 16, groundZ(plane.x, plane.y) + 12);
+  if (G.demo && mode === 'play') {
+    for (const st of storms) {
+      const r = rel(st);
+      if (r.along > 8 && r.along < 30 && Math.abs(r.side) < 12 && Math.abs(r.dz) < 12) doRoll();
+    }
+  }
+  return { turn, climb: Math.max(-1, Math.min(1, (wantZ - plane.z) / 10)) };
+}
+
+function doRoll() {
+  if (plane.loopT < 0 && plane.rollT < 0 && G.crashT === 0) {
+    plane.rollT = 0; plane.rollDir = input.turn < -0.1 ? -1 : input.turn > 0.1 ? 1 : (plane.rollDir * -1);
+    if (mode === 'play') sfx.roll();
+  }
+}
+function doLoop() {
+  if (plane.loopT < 0 && G.crashT === 0) {
+    plane.rollT = -1; plane.loopT = 0; G.loopSun = false;
+    if (mode === 'play') sfx.loop();
+  }
+}
+
+function flight(dt, ctl) {
+  const p = plane;
+  const spd = p.speed * (p.boost ? 1.55 : 1);
+  let fwd = spd, vz = 0, side = 0;
+  if (G.crashT > 0) {                                  // out of fuel: spiral down
+    p.spin += dt * 7; p.h += dt * 1.6; p.pitch = -0.5; vz = -34; fwd = spd * 0.7;
+  } else if (p.loopT >= 0) {                           // full vertical loop
+    p.loopT += dt / 1.7;
+    const a = Math.min(1, p.loopT) * Math.PI * 2;
+    p.pitch = a; fwd = spd * Math.cos(a) * 1.05; vz = spd * Math.sin(a) * 1.05;
+    p.bank += (0 - p.bank) * Math.min(1, dt * 6);
+    if (p.loopT >= 1) { p.loopT = -1; p.pitch = 0; loopDone(); }
+  } else {
+    p.h += ctl.turn * 1.75 * dt;
+    vz = ctl.climb * 30;
+    p.pitch += (ctl.climb * 0.38 - p.pitch) * Math.min(1, dt * 6);
+    p.bank += (ctl.turn * 0.65 - p.bank) * Math.min(1, dt * 5);
+    if (p.rollT >= 0) {                                // barrel roll: sidestep while spinning
+      p.rollT += dt / 0.65;
+      side = p.rollDir * 46 * Math.sin(Math.PI * Math.min(1, p.rollT));
+      if (p.rollT >= 1) p.rollT = -1;
+    }
+  }
+  p.roll = p.bank + (p.rollT >= 0 ? p.rollDir * Math.PI * 2 * p.rollT : 0) + p.spin;
+  const ch = Math.cos(p.h), sh = Math.sin(p.h);
+  p.x += (ch * fwd - sh * side) * dt;
+  p.y += (sh * fwd + ch * side) * dt;
+  p.z = Math.min(125, p.z + vz * dt);
+  if (G.crashT === 0) p.z = Math.max(4, p.z);
+}
+
+// ---------- Spawning ----------
+function spreadZ() { return Math.min(1, 0.2 + G.level * 0.16); }
+function spawnChain() {
+  const ahead = 150 + rnd() * 90, lat = (rnd() - 0.5) * 140;
+  const ch = Math.cos(plane.h), sh = Math.sin(plane.h);
+  let x = plane.x + ch * ahead - sh * lat, y = plane.y + sh * ahead + ch * lat;
+  const dir = plane.h + (rnd() - 0.5) * 1.1, cnt = 5;
+  const z0 = 18 + rnd() * 85 * spreadZ(), dz = (rnd() - 0.5) * 22 * spreadZ();
+  const chain = [];
+  for (let k = 0; k < cnt; k++) {
+    const sx = x + Math.cos(dir) * k * 26, sy = y + Math.sin(dir) * k * 26;
+    const z = Math.max(z0 + dz * k, groundZ(sx, sy) + 12);
+    const s = { x: sx, y: sy, z: Math.min(118, z), got: false, phase: rnd() * 6 };
+    suns.push(s); chain.push(s);
+  }
+  if (G.level >= 3 && mode === 'play') {                // storms guard the suns
+    const k = 1 + (rnd() * 3 | 0), a = chain[k], b = chain[k + 1];
+    addStorm((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+  }
+}
+function addStorm(x, y, z) {
+  storms.push({ x, y, z, bx: x, by: y, phase: rnd() * 6, moving: G.level >= 4 && rnd() < 0.6, hit: false, dodged: false, minD: 1e9 });
+}
+function spawnStorm() {
+  const ahead = 140 + rnd() * 120, lat = (rnd() - 0.5) * 160;
+  const ch = Math.cos(plane.h), sh = Math.sin(plane.h);
+  const x = plane.x + ch * ahead - sh * lat, y = plane.y + sh * ahead + ch * lat;
+  addStorm(x, y, Math.max(groundZ(x, y) + 14, Math.min(115, plane.z + (rnd() - 0.5) * 40)));
+}
+
+// ---------- Gameplay ----------
+function addScore(pts, text, color) { G.score += pts; floatText(text, color); }
+function loopDone() {
+  if (mode !== 'play') return;
+  G.tricks++;
+  if (G.loopSun) addScore(150, 'SUN LOOP +150', '#ffd23f'); else addScore(50, 'LOOP +50', '#d2fff2');
+  sfx.trick();
+}
+
+function gameplay(dt) {
+  // objects drift out of reach: misses, close calls, cleanup
+  suns = suns.filter(s => {
+    const r = rel(s);
+    if (!s.got && r.along < -18) {
+      if (mode === 'play' && Math.abs(r.side) < 70 && G.combo > 1) { G.combo = 0; floatText('COMBO LOST', '#ff9a9a'); }
+      return false;
+    }
+    return !s.got && r.along > -60 && Math.hypot(r.along, r.side) < 420;
+  });
+  for (const st of storms) {
+    if (st.moving) { const k = Math.sin(clock * 1.1 + st.phase) * 30; st.x = st.bx - Math.sin(plane.h) * k; st.y = st.by + Math.cos(plane.h) * k; }
+  }
+  storms = storms.filter(st => {
+    const r = rel(st);
+    if (r.along < -20) {
+      if (mode === 'play' && !st.hit && !st.dodged && st.minD < 24) { G.tricks++; addScore(15, 'CLOSE CALL +15', '#8fd8ea'); sfx.close(); }
+      return false;
+    }
+    return Math.hypot(r.along, r.side) < 420;
+  });
+  let live = 0; for (const s of suns) if (!s.got) live++;
+  if (live < 8) spawnChain();
+  if (mode === 'play' && storms.length < Math.min(14, 2 + G.level * 1.5)) spawnStorm();
+  if (mode !== 'play') return;
+
+  for (const s of suns) {
+    if (s.got) continue;
+    const dd = Math.hypot(s.x - plane.x, s.y - plane.y, (s.z - plane.z) * 1.2);
+    if (dd < 10) {
+      s.got = true;
+      G.combo = clock - G.lastSun < 3 ? Math.min(5, G.combo + 1) : 1;
+      G.lastSun = clock; G.suns++; G.bestCombo = Math.max(G.bestCombo, G.combo);
+      G.fuel = Math.min(100, G.fuel + 9);
+      if (plane.loopT >= 0) G.loopSun = true;
+      addScore(10 * G.combo, G.combo > 1 ? `+${10 * G.combo} x${G.combo}` : '+10', '#ffd23f');
+      sfx.sun(G.combo);
+    }
+  }
+  for (const st of storms) {
+    const dd = Math.hypot(st.x - plane.x, st.y - plane.y, (st.z - plane.z) * 1.2);
+    st.minD = Math.min(st.minD, dd);
+    if (dd < 11 && !st.hit && !st.dodged) {
+      if (plane.rollT >= 0 || plane.loopT >= 0) { st.dodged = true; G.tricks++; addScore(25, 'DODGE +25', '#d2fff2'); sfx.trick(); }
+      else if (G.invuln <= 0) {
+        st.hit = true; G.fuel -= 18; G.invuln = 1; G.combo = 0;
+        floatText('STORM! -FUEL', '#ff5a6e'); sfx.zap(); fx.shake(5); fx.flash('#ff2e4a');
+      }
+    }
+  }
+  // terrain
+  const gz = groundZ(plane.x, plane.y);
+  if (G.crashT === 0 && plane.z < gz + 3 && G.invuln <= 0) {
+    G.fuel -= 28; G.invuln = 1.2; G.combo = 0; plane.z = gz + 14;
+    floatText('CRASH! -FUEL', '#ff5a6e'); sfx.thud(); fx.shake(9); fx.flash('#ffffff');
+  }
+  if (G.crashT === 0 && plane.z < gz + 3) plane.z = gz + 3;
+  // skimming low over water
+  if (gz === 0 && plane.z < 11 && G.crashT === 0) {
+    G.skim += dt;
+    if (G.skim > 0.5) { G.skim = 0; G.score += 3; G.skimText += 1; if (G.skimText % 4 === 1) floatText('SKIM +3', '#8fd8ea'); }
+  }
+  // levels
+  G.levelT += dt;
+  if (G.levelT >= 25) { G.levelT = 0; G.level++; plane.speed *= 1.07; floatText('LEVEL ' + G.level, '#ffffff', true); sfx.level(); }
+  // fuel
+  G.invuln = Math.max(0, G.invuln - dt);
+  if (G.crashT === 0) {
+    G.fuel -= dt * (2.1 + 0.35 * (G.level - 1)) * (plane.boost ? 1.7 : 1);
+    if (G.fuel <= 0) { G.fuel = 0; G.crashT = 0.0001; floatText('OUT OF FUEL', '#ff5a6e', true); sfx.over(); }
+  } else {
+    G.crashT += dt;
+    if (plane.z <= gz + 1 || G.crashT > 4) { fx.shake(10); fx.flash('#ffffff'); sfx.thud(); gameOver(); }
+  }
+  plane.tint = G.invuln > 0 && (clock * 10 | 0) % 2 ? hex('#ffffff') : 0;
+}
+
+// ---------- Main loop ----------
+function update(dt) {
+  clock += dt;
+  cloudDX += dt * 3.2; cloudDY += dt * 1.1;
+  const ctl = mode === 'play' && !G.demo ? readControls() : autopilot();
+  plane.boost = mode === 'play' && (input.keys.Shift || input.boostHeld) ? 1 : 0;
+  flight(dt, ctl);
+  gameplay(dt);
+  viewT += (viewTarget - viewT) * Math.min(1, dt * 1.5);
+  if (Math.abs(viewTarget - viewT) < 0.002) viewT = viewTarget;
+  const k = Math.min(1, dt * 7);
+  camPos.x += (plane.x - camPos.x) * k; camPos.y += (plane.y - camPos.y) * k; camPos.z += (plane.z - camPos.z) * Math.min(1, dt * 4);
+  camPos.h += angDiff(camPos.h, plane.h) * Math.min(1, dt * 2.5);
+  hud();
+}
+
+function render() {
+  setCamera(viewT, camPos.x, camPos.y, camPos.z, camPos.h);
+  beginFrame();
+  clearShadows();
+  sprites = [];
+  const slopeT = (1 - cam.t) / cam.slope;
+  const add = (kind, o) => {
+    const p = project(o.x, o.y, o.z);
+    if (p.d < -0.95 / Math.max(cam.q, 1e-6) || p.d > cam.dMax) return;
+    sprites.push({ kind, ref: o, sx: p.x, sy: p.y, s: p.s, d: p.d, dT: p.d + slopeT * Math.min(0, o.z - ZMAX) });
+  };
+  add('plane', plane);
+  for (const s of suns) if (!s.got) { add('sun', s); stampShadow(s.x, s.y, 3); }
+  for (const st of storms) { add('storm', st); stampShadow(st.x, st.y, 4); }
+  // plane shadow: a little cross under the plane
+  const ch = Math.cos(plane.h), sh = Math.sin(plane.h);
+  for (let k = -6; k <= 7; k++) stampShadow(plane.x + ch * k, plane.y + sh * k, 1);
+  for (let k = -9; k <= 9; k += 2) stampShadow(plane.x - sh * k + ch * 1, plane.y + ch * k + sh * 1, 1);
+  sprites.sort((a, b) => a.dT - b.dT);
+  drawWorld();
+  endFrame();
+}
+
+function readControls() {
+  let turn = 0, climb = 0;
+  const k = input.keys;
+  if (k.ArrowLeft || k.a || k.A) turn -= 1;
+  if (k.ArrowRight || k.d || k.D) turn += 1;
+  if (k.ArrowUp || k.w || k.W) climb += 1;
+  if (k.ArrowDown || k.s || k.S) climb -= 1;
+  if (!turn && !climb && input.pointer) {
+    const dz = v => Math.abs(v) < 0.08 ? 0 : Math.max(-1, Math.min(1, (v - Math.sign(v) * 0.08) / 0.6));
+    turn = dz(input.pointer.x); climb = -dz(input.pointer.y);
+  }
+  input.turn = turn;
+  return { turn, climb };
+}
+
+// ---------- HUD, floating text, effects ----------
+const $ = id => document.getElementById(id);
+function hud() {
+  if (mode !== 'play') return;
+  $('hScore').textContent = G.score;
+  $('hSuns').textContent = G.suns;
+  $('hLevel').textContent = G.level;
+  const cb = $('hCombo');
+  cb.textContent = G.combo > 1 ? `COMBO x${G.combo}` : '';
+  $('fuelFill').style.height = Math.max(0, G.fuel) + '%';
+  $('fuelFill').style.background = G.fuel < 25 && (clock * 4 | 0) % 2 ? '#ff2e4a' : '#ffd23f';
+  $('altFill').style.height = Math.min(100, plane.z / 125 * 100) + '%';
+  $('altGround').style.height = Math.min(100, groundZ(plane.x, plane.y) / 125 * 100) + '%';
+}
+function floatText(text, color, big) {
+  if (mode !== 'play') return;
+  const p = project(plane.x, plane.y, plane.z);
+  const el = document.createElement('div');
+  el.className = 'float' + (big ? ' big' : '');
+  el.textContent = text; el.style.color = color;
+  el.style.left = (big ? 50 : Math.max(18, Math.min(82, p.x / W * 100))) + '%';
+  el.style.top = (big ? 34 : Math.max(10, p.y / H * 100 - 8)) + '%';
+  $('floats').appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+const fx = {
+  mag: 0,
+  shake(m) { this.mag = Math.max(this.mag, m); },
+  flash(c) { const f = $('flash'); f.style.transition = 'none'; f.style.background = c; f.style.opacity = 0.55; requestAnimationFrame(() => { f.style.transition = 'opacity .35s'; f.style.opacity = 0; }); },
+  tick(dt) {
+    this.mag *= Math.pow(0.02, dt);
+    const m = this.mag > 0.3 ? this.mag : 0;
+    cvs.style.transform = m ? `translate(${(Math.random() - 0.5) * m * 2}px,${(Math.random() - 0.5) * m * 2}px)` : '';
+  },
+};
+
+// ---------- Sound (Web Audio, starts on the first tap) ----------
+let ac = null, engine = null;
+function initAudio() {
+  if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+  try {
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain();
+    o.type = 'sawtooth'; o.frequency.value = 55; f.type = 'lowpass'; f.frequency.value = 260; g.gain.value = 0;
+    o.connect(f); f.connect(g); g.connect(ac.destination); o.start();
+    engine = { o, f, g };
+  } catch (e) { ac = null; }
+}
+function tone(freq, dur, type = 'square', vol = 0.12, slide = 0, delay = 0) {
+  if (!ac) return;
+  const t = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+function noise(dur, vol, freq, type = 'lowpass', sweep = 0) {
+  if (!ac) return;
+  const t = ac.currentTime, len = Math.ceil(ac.sampleRate * dur), buf = ac.createBuffer(1, len, ac.sampleRate), ch = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  src.buffer = buf; f.type = type; f.frequency.setValueAtTime(freq, t);
+  if (sweep) f.frequency.exponentialRampToValueAtTime(sweep, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  src.connect(f); f.connect(g); g.connect(ac.destination); src.start(t);
+}
+const sfx = {
+  sun(c) { const b = 660 * Math.pow(2, (c - 1) * 2 / 12); tone(b, 0.09, 'square', 0.08); tone(b * 1.5, 0.14, 'square', 0.08, 0, 0.07); },
+  zap() { noise(0.4, 0.3, 900, 'lowpass', 120); tone(160, 0.35, 'sawtooth', 0.1, 50); },
+  thud() { tone(110, 0.4, 'sine', 0.5, 35); noise(0.25, 0.35, 300, 'lowpass', 60); },
+  roll() { noise(0.45, 0.16, 400, 'bandpass', 2400); },
+  loop() { tone(260, 0.8, 'triangle', 0.12, 880); },
+  trick() { tone(880, 0.07, 'square', 0.07); tone(1175, 0.12, 'square', 0.07, 0, 0.07); },
+  close() { tone(990, 0.06, 'square', 0.06); tone(990, 0.06, 'square', 0.06, 0, 0.1); },
+  level() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.12, 'square', 0.08, 0, i * 0.09)); },
+  over() { tone(440, 1.2, 'sawtooth', 0.1, 70); },
+};
+
+// ---------- Screens ----------
+function bestScore() { try { return +localStorage.getItem('pixelskies.best') || 0; } catch (e) { return 0; } }
+function saveBest(v) { try { localStorage.setItem('pixelskies.best', String(v)); } catch (e) { /* private mode */ } }
+function startGame() {
+  initAudio();
+  Object.assign(G, { score: 0, suns: 0, level: 1, levelT: 0, combo: 0, lastSun: -9, bestCombo: 0, tricks: 0, fuel: 100, invuln: 0, skim: 0, skimText: 0, crashT: 0 });
+  Object.assign(plane, { speed: 52, spin: 0, rollT: -1, loopT: -1, pitch: 0, tint: 0 });
+  plane.z = Math.max(plane.z, groundZ(plane.x, plane.y) + 20);
+  storms = [];
+  mode = 'play'; viewTarget = 1;
+  $('title').classList.add('hide'); $('over').classList.add('hide'); $('hud').classList.remove('hide');
+}
+function gameOver() {
+  mode = 'over'; viewTarget = 0;
+  plane.spin = 0; plane.pitch = 0; G.crashT = 0; plane.tint = 0;
+  plane.z = groundZ(plane.x, plane.y) + 40;
+  const best = Math.max(bestScore(), G.score); saveBest(best);
+  $('oScore').textContent = G.score; $('oLevel').textContent = G.level; $('oCombo').textContent = 'x' + Math.max(1, G.bestCombo);
+  $('oTricks').textContent = G.tricks; $('oBest').textContent = best;
+  $('hud').classList.add('hide'); $('over').classList.remove('hide');
+  storms = [];
+  overAt = performance.now();
+}
+let overAt = 0;
+function toggleView() { if (mode === 'play') viewTarget = viewTarget > 0.5 ? 0 : 1; }
+function tapStart() { if (mode === 'title' || (mode === 'over' && performance.now() - overAt > 700)) startGame(); }
+
+// ---------- Input ----------
+addEventListener('keydown', e => {
+  input.keys[e.key] = true;
+  if (mode !== 'play') { if (e.key === ' ' || e.key === 'Enter') tapStart(); return; }
+  if (e.key === ' ') doRoll();
+  if (e.key === 'e' || e.key === 'E') doLoop();
+  if (e.key === 'v' || e.key === 'V') toggleView();
+  if (e.key.startsWith('Arrow') || e.key === ' ') e.preventDefault();
+});
+addEventListener('keyup', e => { input.keys[e.key] = false; });
+
+let downAt = 0, downX = 0, downY = 0, lastTap = 0, holdTimer = 0;
+const pointerPos = e => ({ x: e.clientX / innerWidth * 2 - 1, y: e.clientY / innerHeight * 2 - 1 });
+cvs.addEventListener('pointerdown', e => {
+  initAudio();
+  downAt = performance.now(); downX = e.clientX; downY = e.clientY;
+  input.pointer = pointerPos(e);
+  if (e.pointerType === 'mouse') holdTimer = setTimeout(() => { input.boostHeld = true; }, 260);
+});
+cvs.addEventListener('pointermove', e => {
+  if (e.pointerType === 'mouse' || e.buttons || e.pressure) input.pointer = pointerPos(e);
+});
+cvs.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') input.pointer = null; });
+function pointerUp(e) {
+  clearTimeout(holdTimer); input.boostHeld = false;
+  if (e.pointerType !== 'mouse') input.pointer = null;
+  const now = performance.now();
+  const tap = now - downAt < 250 && Math.hypot(e.clientX - downX, e.clientY - downY) < 14;
+  if (!tap) return;
+  if (mode !== 'play') { tapStart(); return; }
+  if (now - lastTap < 320) { doLoop(); lastTap = 0; } else { doRoll(); lastTap = now; }
+}
+cvs.addEventListener('pointerup', pointerUp);
+cvs.addEventListener('pointercancel', () => { input.pointer = null; input.boostHeld = false; });
+for (const [id, fn] of [['bRoll', doRoll], ['bLoop', doLoop], ['bView', toggleView]]) {
+  $(id).addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); initAudio(); if (mode === 'play') fn(); });
+}
+
+function step(dt) {
+  update(dt); render(); fx.tick(dt);
+  if (engine) {
+    const on = mode === 'play' && G.crashT === 0 ? 1 : 0;
+    engine.g.gain.setTargetAtTime(on * (plane.boost ? 0.05 : 0.03), ac.currentTime, 0.1);
+    engine.o.frequency.setTargetAtTime(plane.boost ? 82 : 55 + plane.z * 0.1, ac.currentTime, 0.2);
+  }
+}
+// #rec: no animation loop, frames are stepped from outside (used to record the trailer)
+const REC = location.hash.includes('rec');
+let last = performance.now();
+function frame(now) {
+  step(Math.min(0.05, (now - last) / 1000)); last = now;
+  requestAnimationFrame(frame);
+}
+if (!REC) requestAnimationFrame(frame); else render();
+window.game = { startGame, toggleView, doRoll, doLoop, plane, G, step: (n = 1, dt = 1 / 30) => { for (let i = 0; i < n; i++) step(dt); } };
+</script>
+</body>
+</html>
