@@ -11,7 +11,8 @@ const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 const raw = readFileSync(join(botDir, 'POST.json'), 'utf8');
 const post = JSON.parse(raw) as { url?: unknown };
 if (typeof post.url !== 'string' || !/^https:\/\/(x|twitter)\.com\/[A-Za-z0-9_]+\/status\/\d+$/.test(post.url)) {
-  console.error(`POST.json has no X post address yet: ${String(post.url)}`);
+  console.error(`POST.json does not name an X post: ${String(post.url)}`);
+  process.exit(1);
 }
 mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, 'POST.json'), raw);
